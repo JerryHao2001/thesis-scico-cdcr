@@ -1,0 +1,12 @@
+# Core ML/DL Framework
+transformers==4.57.1
+datasets==3.6.0
+
+
+# NLP & Text Processing
+tqdm==4.67.1
+scikit-learn==1.6.0
+jsonlines==2.0.0
+
+ipykernel
+ipywidgets
