@@ -1,14 +1,21 @@
-# scripts/sweep_thresholds.py
-import os, json, argparse, subprocess, tempfile
-import numpy as np
+# scripts/sweep_thresholds_inprocess.py
+import os, json, argparse, importlib.util
 from collections import defaultdict
+import numpy as np
 from datasets import load_dataset
 from sklearn.cluster import AgglomerativeClustering
 
+# ---------- utils ----------
 def sigmoid(x): return 1.0/(1.0+np.exp(-x))
 
+def dynamic_import(path, module_name="eval_sigcoref"):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
 def load_pair_scores(path):
-    """JSONL with {topic_id, n, edges:[{i,j,logit}]}"""
+    """Read JSONL with: {topic_id, n, edges:[{i,j,logit}]} per line"""
     by_tid = {}
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -16,45 +23,42 @@ def load_pair_scores(path):
             by_tid[int(obj["topic_id"])] = obj
     return by_tid
 
-def export_gold_jsonl(split, out_path, gold_end_inclusive=False):
+def build_gold_topics(split, gold_end_inclusive=False):
+    """Return list[dict] in the structure expected by evaluate_signature_coref.get_coref_scores"""
     ds = load_dataset("allenai/scico")[split]
-    with open(out_path, "w", encoding="utf-8") as out:
-        for r in ds:
-            rec = {
-                "id": int(r["id"]),
-                "tokens": r["tokens"],
-                "doc_ids": r.get("doc_ids", []),
-                "relations": r.get("relations", []),
-                "mentions": []
-            }
-            for pid, s, e, cid in r["mentions"]:
-                s, e = int(s), int(e)
-                if gold_end_inclusive:
-                    # the dataset spans are inclusive already; keep as-is to mirror gold file convention
-                    pass
-                rec["mentions"].append([int(pid), s, e, int(cid)])
-            out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    gold = []
+    for r in ds:
+        rec = {
+            "id": int(r["id"]),
+            "tokens": r["tokens"],
+            "doc_ids": r.get("doc_ids", []),
+            "relations": r.get("relations", []),
+            "mentions": []
+        }
+        for pid, s, e, cid in r["mentions"]:
+            # spans in SciCO are inclusive; keep as-is to match gold convention
+            rec["mentions"].append([int(pid), int(s), int(e), int(cid)])
+        gold.append(rec)
+    return gold
 
-def connected_components_from_prob(P, thr):
-    """P: [n,n] probs; edge if P>=thr. Return cluster labels [n]."""
+def cc_from_prob(P, thr):
+    """Connected Components on thresholded probability graph."""
     n = P.shape[0]
+    if n == 0:
+        return np.array([], dtype=int)
     adj = (P >= thr).astype(np.bool_)
-    # zero diagonal
     np.fill_diagonal(adj, False)
-    # BFS
-    seen = np.zeros(n, dtype=bool)
     labels = -np.ones(n, dtype=int)
+    seen = np.zeros(n, dtype=bool)
     c = 0
     for i in range(n):
         if seen[i]: continue
-        # start new component
         stack = [i]
         seen[i] = True
         labels[i] = c
         while stack:
             u = stack.pop()
-            nbrs = np.where(adj[u])[0]
-            for v in nbrs:
+            for v in np.where(adj[u])[0]:
                 if not seen[v]:
                     seen[v] = True
                     labels[v] = c
@@ -63,14 +67,14 @@ def connected_components_from_prob(P, thr):
     return labels
 
 def cluster_topic(P, method, linkage, distance_threshold):
-    """Return labels for a topic given P (probs)."""
+    """P: [n,n] probs. Return labels [n]."""
     n = P.shape[0]
     if n <= 1:
         return np.arange(n, dtype=int)
     if method == "cc":
-        thr = 1.0 - distance_threshold  # P threshold
-        return connected_components_from_prob(P, thr)
-    # agglomerative
+        thr = 1.0 - distance_threshold  # convert distance cut to prob cut
+        return cc_from_prob(P, thr)
+    # agglomerative on D = 1 - P
     D = 1.0 - P
     np.fill_diagonal(D, 0.0)
     clus = AgglomerativeClustering(
@@ -79,79 +83,52 @@ def cluster_topic(P, method, linkage, distance_threshold):
     )
     return clus.fit_predict(D)
 
-def write_system_jsonl(split, scores_by_tid, labels_by_tid, out_path, gold_end_inclusive=False):
-    """Rewrite gold structure but replace cluster ids with predicted labels (matching mention order)."""
+def make_system_from_labels(split, labels_by_tid):
+    """Construct 'system' list mirroring gold structure but with predicted cluster ids."""
     ds = load_dataset("allenai/scico")[split]
     by_id = {int(r["id"]): r for r in ds}
-    with open(out_path, "w", encoding="utf-8") as out:
-        for tid, r in by_id.items():
-            if tid not in labels_by_tid:
-                continue
-            labels = labels_by_tid[tid]
-            mentions = r["mentions"]
-            assert len(labels) == len(mentions), f"Topic {tid}: labels({len(labels)}) != mentions({len(mentions)})"
-            sys_mentions = []
-            for i, (pid, s, e, _gold) in enumerate(mentions):
-                s, e = int(s), int(e)
-                # keep spans as-is (they’re gold); only swap cluster id
-                sys_mentions.append([int(pid), s, e, int(labels[i])])
-            rec = {
-                "id": int(tid),
-                "tokens": r["tokens"],
-                "doc_ids": r.get("doc_ids", []),
-                "relations": [],        # empty for coref-only eval
-                "mentions": sys_mentions
-            }
-            out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    system = []
+    for tid, row in by_id.items():
+        if tid not in labels_by_tid:
+            continue
+        labels = labels_by_tid[tid]
+        mentions = row["mentions"]
+        assert len(labels) == len(mentions), f"Topic {tid}: labels({len(labels)}) != mentions({len(mentions)})"
+        sys_mentions = []
+        for i, (pid, s, e, _gold) in enumerate(mentions):
+            sys_mentions.append([int(pid), int(s), int(e), int(labels[i])])
+        system.append({
+            "id": int(tid),
+            "tokens": row["tokens"],
+            "doc_ids": row.get("doc_ids", []),
+            "relations": [],
+            "mentions": sys_mentions
+        })
+    return system
 
-def run_evaluator(eval_script, gold_jsonl, sys_jsonl):
-    """Call your evaluate.py and parse its stdout for 'CoNLL score' (last token)."""
-    proc = subprocess.run(
-        ["python", eval_script, gold_jsonl, sys_jsonl],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-    )
-    out = proc.stdout.strip().splitlines()
-    # Assumes evaluate.py prints a line like: "CoNLL score: 73.21"
-    # Robust parse: find last number in output
-    import re
-    nums = re.findall(r"[-+]?\d*\.\d+|\d+", out[-1] if out else "")
-    if not nums:
-        # fallback: scan all lines for the phrase
-        for line in reversed(out):
-            if "Conll" in line.lower() or "conll" in line:
-                nums = re.findall(r"[-+]?\d*\.\d+|\d+", line)
-                if nums: break
-    if not nums:
-        print("\n".join(out))
-        raise RuntimeError("Could not parse CoNLL score from evaluator output.")
-    return float(nums[-1]), out  # score, raw output
-
+# ---------- main sweep ----------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scores_path", required=True, help="pair_scores_dev.jsonl from dump step")
+    ap.add_argument("--scores_path", required=True, help="pair_scores_*.jsonl from dump step")
     ap.add_argument("--split", default="validation", choices=["train","validation","test"])
-    ap.add_argument("--eval_script", required=True, help="path to evaluate.py")
-    ap.add_argument("--gold_jsonl", default="", help="optional prebuilt gold jsonl; if empty, will export one")
+    ap.add_argument("--eval_module_path", required=True, help="Path to evaluate_signature_coref.py")
     ap.add_argument("--temperature", type=float, default=1.0, help="T for p = sigmoid(logit/T)")
     ap.add_argument("--method", default="agglomerative", choices=["agglomerative","cc"])
-    ap.add_argument("--linkage", default="average", choices=["average","complete"], help="for agglomerative")
-    ap.add_argument("--t_min", type=float, default=0.05)
-    ap.add_argument("--t_max", type=float, default=0.95)
+    ap.add_argument("--linkage", default="average", choices=["average","complete"])
+    ap.add_argument("--t_min", type=float, default=0.10)
+    ap.add_argument("--t_max", type=float, default=0.90)
     ap.add_argument("--t_step", type=float, default=0.02)
-    ap.add_argument("--gold_end_inclusive", action="store_true")
-    ap.add_argument("--work_dir", default="sweep_outputs")
     args = ap.parse_args()
 
-    os.makedirs(args.work_dir, exist_ok=True)
+    # Import evaluator in-process
+    eval_mod = dynamic_import(args.eval_module_path)
+    get_coref_scores = eval_mod.get_coref_scores  # returns dict with 'conll' = sum of F1s
+
+    # Build gold topics (Python objects)
+    gold = build_gold_topics(args.split)
+
+    # Map topic_id -> probability matrix
     scores_by_tid = load_pair_scores(args.scores_path)
-
-    # Export gold if needed
-    gold_path = args.gold_jsonl
-    if not gold_path:
-        gold_path = os.path.join(args.work_dir, f"gold_{args.split}.jsonl")
-        export_gold_jsonl(args.split, gold_path, gold_end_inclusive=args.gold_end_inclusive)
-
-    # Build per-topic probability matrices from logits
     probs_by_tid = {}
     for tid, obj in scores_by_tid.items():
         n = int(obj["n"])
@@ -164,29 +141,32 @@ def main():
         probs_by_tid[tid] = P
 
     # Sweep thresholds
-    best = {"score": -1.0, "t": None, "sys_path": None}
     t = args.t_min
+    best = {"t": None, "score": -1.0, "system": None}
     results = []
     while t <= args.t_max + 1e-9:
-        labels_by_tid = {}
-        for tid, P in probs_by_tid.items():
-            labels_by_tid[tid] = cluster_topic(P, args.method, args.linkage, t)
-
-        sys_path = os.path.join(args.work_dir, f"system_{args.method}_{args.linkage}_t{t:.2f}.jsonl")
-        write_system_jsonl(args.split, scores_by_tid, labels_by_tid, sys_path, gold_end_inclusive=args.gold_end_inclusive)
-
-        score, _out = run_evaluator(args.eval_script, gold_path, sys_path)
-        results.append((t, score))
-        if score > best["score"]:
-            best.update({"score": score, "t": t, "sys_path": sys_path})
+        labels_by_tid = {tid: cluster_topic(P, args.method, args.linkage, t)
+                         for tid, P in probs_by_tid.items()}
+        system = make_system_from_labels(args.split, labels_by_tid)
+        scores = get_coref_scores(gold, system)
+        conll = (scores["conll"] / 3.0) * 100.0
+        results.append((t, conll))
+        if conll > best["score"]:
+            best.update({"t": t, "score": conll, "system": system})
         t += args.t_step
 
-    # Print table and winner
+    # Report
     print("Threshold sweep (t, CoNLL):")
     for t, s in results:
         print(f"{t:.2f}\t{s:.2f}")
     print(f"\nBest: t={best['t']:.2f}, CoNLL={best['score']:.2f}")
-    print(f"Best system file: {best['sys_path']}")
+
+    # Optional: write the best system JSONL to disk for record keeping
+    out_path = f"best_system_{args.method}_{args.linkage}_t{best['t']:.2f}.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for rec in best["system"]:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    print(f"Saved best system to {out_path}")
 
 if __name__ == "__main__":
     main()

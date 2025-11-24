@@ -24,11 +24,12 @@ output/
 log/
 tmp/
 configs/
+sweep_dev/
 
 # Data and cached model files (project-specific)
 data_scico/
 data_tanl/
-tanl-scierc_all-step44270/
+tanl-scierc_all-backbone/
 prompt.txt
 
 # PyTorch / model weights / checkpoints / tokenizer files

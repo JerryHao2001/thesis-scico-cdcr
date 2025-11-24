@@ -1,5 +1,13 @@
 ##
+Download code with 
+git clone https://github.com/JerryHao2001/thesis-scico-cdcr.git
 
+get data and weights to 
+/data_scico
+/data_tanl
+/output
+/ckpts_sigce
+/tanl-scierc_all-backbone
 
 ## Requirements
 mkdir -p "$HOME/.local/bin"
@@ -40,4 +48,4 @@ python evaluate.py data_scico/test.jsonl output/system_pred.jsonl
 ## Calibrate
 python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --out_path output/pair_scores_dev.jsonl
 
-python -m calibration.sweep_thresholds --scores_path output/pair_scores_dev.jsonl --split validation --eval_script evaluate_signature_coref.py --method agglomerative --linkage average --t_min 0.10 --t_max 0.90 --t_step 0.1 --temperature 1.0 --work_dir sweep_dev
+python -m calibration.sweep_thresholds --scores_path output/pair_scores_dev.jsonl --split validation --eval_module_path evaluate_signature_coref.py --method agglomerative --linkage average --t_min 0.00 --t_max 0.10 --t_step 0.02
