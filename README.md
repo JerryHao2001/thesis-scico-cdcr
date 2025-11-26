@@ -34,16 +34,15 @@ python build_signature.py --pred_path scico_dev_tanl_extraction.jsonl --split va
 
 python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --epochs 3 --batch_size 8 --max_length 512 --neg_pos_ratio 1.0 --output_dir ckpts_sigce
 
-python predict_signature_coref.py --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --distance_threshold 0.5 --out_path predicted_clusters.jsonl
+python predict_signature_coref.py --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --distance_threshold 0.1 --out_path output/predicted_clusters_0.1.jsonl
 
-python eval/run_coref_eval.py --split test --predicted_clusters predicted_clusters.jsonl
+python eval/run_coref_eval.py --split test --predicted_clusters output/predicted_clusters.jsonl
 
 ## Eval
 
-python utils/make_scico_pred_jsonl.py --split test --predicted_clusters output/predicted_clusters.jsonl --out_path output/system_pred.jsonl
+python utils/make_scico_pred_jsonl.py --split test --predicted_clusters output/predicted_clusters_0.1.jsonl --out_path output/system_pred_0.1.jsonl
 
-
-python evaluate.py data_scico/test.jsonl output/system_pred.jsonl
+python evaluate_signature_coref.py data_scico/test.jsonl output/system_pred_0.1.jsonl
 
 ## Calibrate
 python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --out_path output/pair_scores_dev.jsonl
