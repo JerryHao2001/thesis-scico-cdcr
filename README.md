@@ -50,4 +50,4 @@ python -m calibration.dump_pair_scores --split validation --signatures_path data
 
 python -m calibration.fit_temperature_from_pairs --scores_path output/pair_scores_dev.jsonl --split validation --out_json output/temperature_dev.json
 
-python -m calibration.sweep_thresholds --scores_path output/pair_scores_dev.jsonl --split validation --eval_module_path evaluate_signature_coref.py --temperature_json output/temperature_dev.json --method agglomerative --linkage average --t_min 0.15 --t_max 0.25 --t_step 0.01
+python -m calibration.sweep_thresholds --scores_path output/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output/temperature_dev.json --method agglomerative --linkage average --t_min 0.2 --t_max 0.2 --t_step 1

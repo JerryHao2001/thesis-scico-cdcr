@@ -169,6 +169,15 @@ def main():
         print(f"{t:.2f}\t{s:.2f}")
     print(f"\nBest: t={best['t']:.2f}, CoNLL={best['score']:.2f}")
 
+    # Print full coref metrics for the best threshold
+    best_scores = get_coref_scores(gold, best["system"])
+    print("\nCoref metrics (best threshold)")
+    for metric, vals in best_scores.items():
+        if metric == "conll": continue
+        r, p, f = vals
+        print(f"{metric.ljust(10)} Recall: {r*100:.2f}  Precision: {p*100:.2f}  F1: {f*100:.2f}")
+    print(f"CoNLL score: {(best_scores['conll']/3.0)*100:.2f}")
+
     # Optional: write the best system JSONL to disk for record keeping
     out_path = f"best_system_{args.method}_{args.linkage}_t{best['t']:.2f}.jsonl"
     with open(out_path, "w", encoding="utf-8") as f:
