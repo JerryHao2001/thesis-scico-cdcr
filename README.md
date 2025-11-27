@@ -28,7 +28,13 @@ python tanl_extractor.py --model_dir tanl-scierc_all-step44270 --tokenizer_dir t
 
 
 ## Build signature yaml
-python build_signature.py --pred_path scico_dev_tanl_extraction.jsonl --split validation --out_path scico_signatures_dev.jsonl
+python preprocess/build_signature.py --pred_path data_tanl/scico_dev_tanl_extraction.jsonl --split validation --out_path data_tanl/scico_signatures_dev.jsonl;
+python preprocess/build_signature.py --pred_path data_tanl/scico_train_tanl_extraction.jsonl --split train --out_path data_tanl/scico_signatures_train.jsonl;
+python preprocess/build_signature.py --pred_path data_tanl/scico_test_tanl_extraction.jsonl --split test --out_path data_tanl/scico_signatures_test.jsonl
+
+python preprocess/build_signature_coref.py --pred_path data_tanl/scico_dev_tanl_extraction.jsonl --coref_path data_tanl/scico_dev_tanl_extraction_coref.jsonl --split validation --out_path data_tanl/scico_signatures_coref_dev.jsonl --delta_pos 3 --delta_len 3 
+
+
 
 ## Cross-Encoder
 

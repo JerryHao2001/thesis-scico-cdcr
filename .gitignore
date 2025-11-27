@@ -48,6 +48,7 @@ checkpoints/
 outputs/
 runs/
 logs/
+archieve/
 
 # Hugging Face / transformers caches
 .cache/
