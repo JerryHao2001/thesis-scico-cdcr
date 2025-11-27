@@ -47,4 +47,6 @@ python evaluate_signature_coref.py data_scico/test.jsonl output/system_pred_0.1.
 ## Calibrate
 python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --out_path output/pair_scores_dev.jsonl
 
-python -m calibration.sweep_thresholds --scores_path output/pair_scores_dev.jsonl --split validation --eval_module_path evaluate_signature_coref.py --method agglomerative --linkage average --t_min 0.00 --t_max 0.10 --t_step 0.02
+python -m calibration.fit_temperature_from_pairs --scores_path output/pair_scores_dev.jsonl --split validation --out_json output/temperature_dev.json
+
+python -m calibration.sweep_thresholds --scores_path output/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output/temperature_dev.json --method agglomerative --linkage average --t_min 0.2 --t_max 0.2 --t_step 1

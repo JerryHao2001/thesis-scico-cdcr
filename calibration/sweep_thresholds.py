@@ -112,13 +112,21 @@ def main():
     ap.add_argument("--scores_path", required=True, help="pair_scores_*.jsonl from dump step")
     ap.add_argument("--split", default="validation", choices=["train","validation","test"])
     ap.add_argument("--eval_module_path", required=True, help="Path to evaluate_signature_coref.py")
-    ap.add_argument("--temperature", type=float, default=1.0, help="T for p = sigmoid(logit/T)")
+    ap.add_argument("--temperature_json", default="", help="JSON produced by fit_temperature_from_pairs.py")
     ap.add_argument("--method", default="agglomerative", choices=["agglomerative","cc"])
     ap.add_argument("--linkage", default="average", choices=["average","complete"])
     ap.add_argument("--t_min", type=float, default=0.10)
     ap.add_argument("--t_max", type=float, default=0.90)
     ap.add_argument("--t_step", type=float, default=0.02)
     args = ap.parse_args()
+
+    # then, after parsing args:
+    if args.temperature_json:
+        with open(args.temperature_json, "r", encoding="utf-8") as f:
+            Tobj = json.load(f)
+        args.temperature = float(Tobj["temperature"])
+        print(f"[sweep] Loaded temperature T={args.temperature:.4f} from {args.temperature_json}")
+
 
     # Import evaluator in-process
     eval_mod = dynamic_import(args.eval_module_path)
@@ -160,6 +168,15 @@ def main():
     for t, s in results:
         print(f"{t:.2f}\t{s:.2f}")
     print(f"\nBest: t={best['t']:.2f}, CoNLL={best['score']:.2f}")
+
+    # Print full coref metrics for the best threshold
+    best_scores = get_coref_scores(gold, best["system"])
+    print("\nCoref metrics (best threshold)")
+    for metric, vals in best_scores.items():
+        if metric == "conll": continue
+        r, p, f = vals
+        print(f"{metric.ljust(10)} Recall: {r*100:.2f}  Precision: {p*100:.2f}  F1: {f*100:.2f}")
+    print(f"CoNLL score: {(best_scores['conll']/3.0)*100:.2f}")
 
     # Optional: write the best system JSONL to disk for record keeping
     out_path = f"best_system_{args.method}_{args.linkage}_t{best['t']:.2f}.jsonl"
