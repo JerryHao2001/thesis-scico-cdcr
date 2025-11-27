@@ -23,7 +23,8 @@ uv pip install --index-url https://download.pytorch.org/whl/cu126 torch==2.6.0 t
 uv pip install -r requirements.txt
 
 ## Tanl extractor usage
-python tanl_extractor.py --model_dir tanl-scierc_all-step44270 --tokenizer_dir t5-base --split train --task scierc_joint_er --num_beams 2 --max_input_len 512 --max_output_len 1024 --out scico_train_tanl_extraction.jsonl; python tanl_extractor.py --model_dir tanl-scierc_all-step44270 --tokenizer_dir t5-base --split dev --task scierc_joint_er --num_beams 2 --max_input_len 512 --max_output_len 1024 --out scico_dev_tanl_extraction.jsonl; python tanl_extractor.py --model_dir tanl-scierc_all-step44270 --tokenizer_dir t5-base --split test --task scierc_joint_er --num_beams 2 --max_input_len 512 --max_output_len 1024 --out scico_test_tanl_extraction.jsonl
+python preprocess/tanl_extractor.py --model_dir tanl-scierc_all-backbone --tokenizer_dir t5-base --split train --task scierc_coref --num_beams 2 --max_input_len 512 --max_output_len 1024 --out scico_train_tanl_extraction_coref.jsonl; python preprocess/tanl_extractor.py --model_dir tanl-scierc_all-backbone --tokenizer_dir t5-base --split dev --task scierc_coref --num_beams 2 --max_input_len 512 --max_output_len 1024 --out scico_dev_tanl_extraction_coref.jsonl; 
+python preprocess/tanl_extractor.py --model_dir tanl-scierc_all-backbone --tokenizer_dir t5-base --split test --task scierc_coref --num_beams 2 --max_input_len 512 --max_output_len 1024 --out scico_test_tanl_extraction_coref.jsonl
 
 
 
@@ -32,7 +33,7 @@ python build_signature.py --pred_path scico_dev_tanl_extraction.jsonl --split va
 
 ## Cross-Encoder
 
-python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --epochs 3 --batch_size 8 --max_length 512 --neg_pos_ratio 1.0 --output_dir ckpts_sigce
+python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --epochs 5 --batch_size 8 --max_length 512 --neg_pos_ratio 1.0 --output_dir ckpts_sigce_mlp1
 
 python predict_signature_coref.py --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --distance_threshold 0.5 --out_path predicted_clusters.jsonl
 
@@ -46,8 +47,8 @@ python utils/make_scico_pred_jsonl.py --split test --predicted_clusters output/p
 python evaluate.py data_scico/test.jsonl output/system_pred.jsonl
 
 ## Calibrate
-python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --out_path output/pair_scores_dev.jsonl
+python -m calibration.dump_pair_scores --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce_mlp1/best_epoch3_f10.8591.pt --out_path output_mlp/pair_scores_test.jsonl
 
-python -m calibration.fit_temperature_from_pairs --scores_path output/pair_scores_dev.jsonl --split validation --out_json output/temperature_dev.json
+python -m calibration.fit_temperature_from_pairs --scores_path output_mlp/pair_scores_dev.jsonl --split validation --out_json output_mlp/temperature_dev.json
 
-python -m calibration.sweep_thresholds --scores_path output/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output/temperature_dev.json --method agglomerative --linkage average --t_min 0.2 --t_max 0.2 --t_step 1
+python -m calibration.sweep_thresholds --scores_path output_mlp/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output_mlp/temperature_dev.json --method agglomerative --linkage average --t_min 0.2 --t_max 0.2 --t_step 1

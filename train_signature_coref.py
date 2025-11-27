@@ -52,7 +52,6 @@ def main():
     ap.add_argument("--max_length", type=int, default=384)
     ap.add_argument("--batch_size", type=int, default=16)
     ap.add_argument("--epochs", type=int, default=3)
-    ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--warmup_ratio", type=float, default=0.1)
     ap.add_argument("--neg_pos_ratio", type=float, default=1.0)
     ap.add_argument("--topics_limit_train", type=int, default=-1)
@@ -91,7 +90,10 @@ def main():
     model.bert.resize_token_embeddings(len(train_ds.tokenizer))
     model.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW([
+        {"params": model.bert.parameters(), "lr": 2e-5, "weight_decay": 0.01},
+        {"params": model.head.parameters(), "lr": 5e-5, "weight_decay": 0.01},
+    ])
     total_steps = len(train_dl) * args.epochs
     warmup_steps = int(args.warmup_ratio * total_steps)
     scheduler = get_linear_schedule_with_warmup(optimizer, warmup_steps, total_steps)
