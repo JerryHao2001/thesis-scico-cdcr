@@ -28,11 +28,14 @@ python tanl_extractor.py --model_dir tanl-scierc_all-step44270 --tokenizer_dir t
 
 
 ## Build signature yaml
-python build_signature.py --pred_path scico_dev_tanl_extraction.jsonl --split validation --out_path scico_signatures_dev.jsonl
+python preprocess/build_signature.py --pred_path data_tanl/scico_train_tanl_extraction.jsonl --split train --out_path data_tanl/scico_signatures_train.jsonl; 
+python preprocess/build_signature.py --pred_path data_tanl/scico_dev_tanl_extraction.jsonl --split validation --out_path data_tanl/scico_signatures_dev.jsonl; 
+python preprocess/build_signature.py --pred_path data_tanl/scico_test_tanl_extraction.jsonl --split test --out_path data_tanl/scico_signatures_test.jsonl
+
 
 ## Cross-Encoder
 
-python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --epochs 3 --batch_size 8 --max_length 512 --neg_pos_ratio 1.0 --output_dir ckpts_sigce
+python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --epochs 3 --batch_size 8 --max_length 512 --neg_pos_ratio 1.0 --output_dir ckpts_sigce_fixspan
 
 python predict_signature_coref.py --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --distance_threshold 0.1 --out_path output/predicted_clusters_0.1.jsonl
 
@@ -45,8 +48,6 @@ python utils/make_scico_pred_jsonl.py --split test --predicted_clusters output/p
 python evaluate_signature_coref.py data_scico/test.jsonl output/system_pred_0.1.jsonl
 
 ## Calibrate
-python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --out_path output/pair_scores_dev.jsonl
-
+python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --checkpoint ckpts_sigce_fixspan/best_epoch1_f10.8742.pt --out_path output/pair_scores_dev.jsonl;
 python -m calibration.fit_temperature_from_pairs --scores_path output/pair_scores_dev.jsonl --split validation --out_json output/temperature_dev.json
-
-python -m calibration.sweep_thresholds --scores_path output/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output/temperature_dev.json --method agglomerative --linkage average --t_min 0.2 --t_max 0.2 --t_step 1
+python -m calibration.sweep_thresholds --scores_path output/pair_scores_dev.jsonl --split validation --eval_module_path evaluate_signature_coref.py --temperature_json output/temperature_dev.json --method agglomerative --linkage average --t_min 0.1 --t_max 0.9 --t_step 0.05
