@@ -5,7 +5,7 @@ from transformers import AutoModel, AutoConfig
 
 class SignatureCorefCrossEncoder(nn.Module):
     def __init__(self, bert_model="allenai/scibert_scivocab_uncased",
-                 dropout=0.1, mlp_hidden=512, mlp_layers=1):
+                 dropout=0.1, mlp_hidden=512, mlp_layers=2):
         super().__init__()
         self.config = AutoConfig.from_pretrained(bert_model)
         self.bert = AutoModel.from_pretrained(bert_model, config=self.config)
