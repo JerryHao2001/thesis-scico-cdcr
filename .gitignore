@@ -21,6 +21,7 @@ Thumbs.db
 
 # Exclude experiments directory (all contents)
 output/
+output_mlp/
 log/
 tmp/
 configs/
@@ -31,6 +32,7 @@ data_scico/
 data_tanl/
 tanl-scierc_all-backbone/
 prompt.txt
+archieve/
 
 # PyTorch / model weights / checkpoints / tokenizer files
 *.pth
