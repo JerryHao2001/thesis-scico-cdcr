@@ -205,7 +205,7 @@ def main():
         gold_by_para = defaultdict(list)
         for (pid, s, e, cid) in mentions:
             s = int(s); e = int(e)
-            e = min(e + 1, len(tokens_by_para[pid]))
+            # e = min(e + 1, len(tokens_by_para[pid]))
             gold_by_para[int(pid)].append((s, e, int(cid)))
 
         for pid, toks in enumerate(tokens_by_para):
@@ -239,7 +239,7 @@ def main():
 
             # For each gold mention in this paragraph: build YAML signature
             for (gs, ge, cid) in gold_by_para.get(pid, []):
-                gold_text = detok(toks[gs:ge])
+                gold_text = detok(toks[gs:ge+1])
 
                 # find sentence
                 sent_idx = find_sentence_idx(para_sent_spans, (gs,ge))
