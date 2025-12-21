@@ -58,32 +58,48 @@ def norm(s: str) -> str:
 
 # [ mention | TYPE | r1 = obj ; r2 = obj2 ]  ; (the rel section can be separated by ';' or '|')
 BRACKET_RE = re.compile(
-    r"\[\s*(?P<mention>.+?)\s*\|\s*(?P<etype>[^|\]]+?)\s*(?:\|\s*(?P<rels>.+?))?\s*\]"
+    r"\[\s*(?P<mention>[^|\]]+?)\s*\|\s*(?P<etype>[^|\]]+?)\s*(?:\|\s*(?P<rels>.+?))?\s*\]"
 )
-REL_PAIR_RE = re.compile(r"(?P<rname>[a-zA-Z_]+)\s*=\s*(?P<arg>[^;|]+)")
+
+REL_SEP_RE = re.compile(r"\s*\|\s*")
+
+def parse_relations(rels_str: str):
+    """
+    Parse relations like:
+      "used for = hybrid model | evaluated on = CNN/DailyMail"
+    allowing spaces in predicate names and arguments.
+    """
+    rels = []
+    rels_str = (rels_str or "").strip()
+    if not rels_str:
+        return rels
+
+    for chunk in REL_SEP_RE.split(rels_str):
+        chunk = chunk.strip()
+        if not chunk or "=" not in chunk:
+            continue
+
+        pred, arg = chunk.split("=", 1)  # split once: keep '=' inside arg if it ever occurs
+        pred = re.sub(r"\s+", " ", pred).strip()
+        arg  = re.sub(r"\s+", " ", arg).strip()
+        if pred and arg:
+            rels.append((pred, arg))
+
+    return rels
 
 def parse_tanl(tanl_text: str):
-    """
-    Returns:
-      entities: list of dicts with fields:
-        - text, type
-        - rels_out: list of (predicate, object_text)
-      order is mention order in the paragraph
-    """
     entities = []
     for m in BRACKET_RE.finditer(tanl_text or ""):
-        mention = m.group("mention").split("|")[0].strip()
+        mention = (m.group("mention") or "").strip()
         etype = (m.group("etype") or "").strip()
         rels_str = m.group("rels") or ""
-        rels = []
-        for r in REL_PAIR_RE.finditer(rels_str):
-            pred = r.group("rname").strip()
-            obj = r.group("arg").strip()
-            rels.append((pred, obj))
+
+        rels = parse_relations(rels_str)
+
         entities.append({
             "text": mention,
             "type": etype if etype else None,
-            "rels_out": rels,    # subject = this mention
+            "rels_out": rels,
         })
     return entities
 
@@ -239,7 +255,9 @@ def main():
 
             # For each gold mention in this paragraph: build YAML signature
             for (gs, ge, cid) in gold_by_para.get(pid, []):
-                gold_text = detok(toks[gs:ge+1])
+                ge_ro = int(ge) + 1
+
+                gold_text = detok(toks[gs:ge_ro])
 
                 # find sentence
                 sent_idx = find_sentence_idx(para_sent_spans, (gs,ge))
@@ -251,7 +269,7 @@ def main():
                 for i, sp in enumerate(tanl_spans):
                     if sp is None:
                         continue
-                    if fuzzy_hit((gs,ge), sp, delta_pos=args.delta_pos, delta_len=args.delta_len):
+                    if fuzzy_hit((gs,ge_ro), sp, delta_pos=args.delta_pos, delta_len=args.delta_len):
                         match_idx = i
                         break
 
@@ -287,7 +305,7 @@ def main():
                     if not (st >= ss and en <= se):
                         continue
                     # skip if this is the matched target span (loosely check overlap with gold)
-                    if abs(st - gs) <= args.delta_pos and abs((en - st) - (ge - gs)) <= args.delta_len:
+                    if abs(st - gs) <= args.delta_pos and abs((en - st) - (ge_ro - gs)) <= args.delta_len:
                         continue
                     item = {"text": tanl_entities[i]["text"]}
                     if tanl_entities[i]["type"]:
@@ -303,7 +321,7 @@ def main():
                 # simple token-level insertion using offsets relative to sentence
                 pre = detok(toks[ss:gs])
                 mid = gold_text
-                post = detok(toks[ge:se])
+                post = detok(toks[ge_ro:se])
                 highlighted = (pre + (" " if pre and not pre.endswith(" ") else "")
                                + args.m_open + mid + args.m_close
                                + ("" if (not post or post.startswith(" ")) else " ") + post).strip()
