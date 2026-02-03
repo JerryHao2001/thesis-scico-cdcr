@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from datasets import load_dataset
 from transformers import AutoTokenizer
+from pathlib import Path
 
 from models.signature_crossencoder import SignatureCorefCrossEncoder
 from models.signature_pair_dataset import add_special_tokens, load_signatures_jsonl, build_topic_mentions
@@ -54,34 +55,38 @@ def main():
     model.load_state_dict(ckpt["state_dict"])
     model.to(device).eval()
 
-    out = open(args.out_path, "w", encoding="utf-8")
+    # out = open(args.out_path, "w", encoding="utf-8")
+    out_file = Path(args.out_path)
 
-    for r in ds:
-        tid = int(r["id"])
-        mentions = build_topic_mentions(r, sig_map)
-        signatures = [m["signature"] for m in mentions]
-        n = len(signatures)
-        if n <= 1:
-            out.write(json.dumps({"topic_id": tid, "n": n, "edges": []}) + "\n")
-            continue
+    out_file.parent.mkdir(parents=True, exist_ok=True)
 
-        topic_ds = TopicPairs(signatures)
-        dl = DataLoader(topic_ds, batch_size=args.batch_size, shuffle=False,
-                        collate_fn=lambda b: collate(b, tok, args.max_length))
+    with out_file.open("w", encoding="utf-8") as out:
 
-        edges = []
-        with torch.no_grad():
-            for enc, meta in dl:
-                input_ids = enc["input_ids"].to(device)
-                attn = enc["attention_mask"].to(device)
-                tti = enc.get("token_type_ids")
-                if tti is not None: tti = tti.to(device)
-                out_logits = model(input_ids, attn, token_type_ids=tti)["logits"].cpu().numpy()
-                for (i, j), z in zip(meta, out_logits.tolist()):
-                    edges.append({"i": i, "j": j, "logit": float(z)})
-        out.write(json.dumps({"topic_id": tid, "n": n, "edges": edges}) + "\n")
+        for r in ds:
+            tid = int(r["id"])
+            mentions = build_topic_mentions(r, sig_map)
+            signatures = [m["signature"] for m in mentions]
+            n = len(signatures)
+            if n <= 1:
+                out.write(json.dumps({"topic_id": tid, "n": n, "edges": []}) + "\n")
+                continue
 
-    out.close()
+            topic_ds = TopicPairs(signatures)
+            dl = DataLoader(topic_ds, batch_size=args.batch_size, shuffle=False,
+                            collate_fn=lambda b: collate(b, tok, args.max_length))
+
+            edges = []
+            with torch.no_grad():
+                for enc, meta in dl:
+                    input_ids = enc["input_ids"].to(device)
+                    attn = enc["attention_mask"].to(device)
+                    tti = enc.get("token_type_ids")
+                    if tti is not None: tti = tti.to(device)
+                    out_logits = model(input_ids, attn, token_type_ids=tti)["logits"].cpu().numpy()
+                    for (i, j), z in zip(meta, out_logits.tolist()):
+                        edges.append({"i": i, "j": j, "logit": float(z)})
+            out.write(json.dumps({"topic_id": tid, "n": n, "edges": edges}) + "\n")
+
     print(f"Wrote pair scores to {args.out_path}")
 
 if __name__ == "__main__":
