@@ -1,6 +1,7 @@
 # Core ML/DL Framework
-transformers==4.57.1
+transformers==4.51.3
 datasets==3.6.0
+adapters==1.2.0
 
 
 # NLP & Text Processing
