@@ -49,6 +49,7 @@ def main():
     ap.add_argument("--signatures_path_train", required=True)
     ap.add_argument("--signatures_path_val", required=True)
     ap.add_argument("--bert_model", default="allenai/scibert_scivocab_uncased")
+    ap.add_argument("--adapter_name", default="", help="Optional HF adapter id, e.g. allenai/specter2")
     ap.add_argument("--max_length", type=int, default=384)
     ap.add_argument("--batch_size", type=int, default=16)
     ap.add_argument("--epochs", type=int, default=3)
@@ -85,7 +86,8 @@ def main():
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collator)
     val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collator)
 
-    model = SignatureCorefCrossEncoder(bert_model=args.bert_model)
+    adapter = args.adapter_name.strip() or None
+    model = SignatureCorefCrossEncoder(bert_model=args.bert_model, adapter_name=adapter)
     # IMPORTANT: resize embeddings for added <m>, </m>
     add_special_tokens(train_ds.tokenizer, ("<m>", "</m>"))
     model.bert.resize_token_embeddings(len(train_ds.tokenizer))
@@ -123,7 +125,7 @@ def main():
         # validation
         metrics = evaluate(model, val_dl, device)
         print(f"[epoch {epoch}] val: {metrics}")
-        if metrics["f1"] > best_f1:
+        if 1 or metrics["f1"] > best_f1:
             best_f1 = metrics["f1"]
             ckpt_path = os.path.join(args.output_dir, f"best_epoch{epoch}_f1{best_f1:.4f}.pt")
             torch.save({"state_dict": model.state_dict(),

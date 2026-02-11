@@ -35,6 +35,7 @@ def main():
     ap.add_argument("--split", default="validation", choices=["train","validation","test"])
     ap.add_argument("--signatures_path", required=True)
     ap.add_argument("--bert_model", default="allenai/scibert_scivocab_uncased")
+    ap.add_argument("--adapter_name", default="", help="Optional HF adapter id (e.g., allenai/specter2)")
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--max_length", type=int, default=384)
     ap.add_argument("--batch_size", type=int, default=32)
@@ -49,7 +50,8 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.bert_model, use_fast=True)
     add_special_tokens(tok, ("<m>", "</m>"))
 
-    model = SignatureCorefCrossEncoder(args.bert_model)
+    adapter = args.adapter_name.strip() or None
+    model = SignatureCorefCrossEncoder(bert_model=args.bert_model, adapter_name=adapter)
     model.bert.resize_token_embeddings(len(tok))
     ckpt = torch.load(args.checkpoint, map_location="cpu")
     model.load_state_dict(ckpt["state_dict"])
