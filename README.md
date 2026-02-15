@@ -35,7 +35,13 @@ python preprocess/build_signature.py --pred_path data_tanl/scico_test_tanl_extra
 
 ## Cross-Encoder
 
-python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --bert_model allenai/specter2_base --adapter_name allenai/specter2  --epochs 5 --batch_size 8 --max_length 512 --neg_pos_ratio 10 --output_dir ckpts/ckpts_sigce_specter
+python train_signature_coref.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl  --bert_model allenai/specter2_base --adapter_name allenai/specter2  --epochs 5 --batch_size 8 --max_length 512 --neg_pos_ratio 10 --output_dir ckpts/ckpts_sigce_specter1010
+
+python train_signature_antecedent.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 3 --lr 2e-5 --topic_batch_size 1 --pair_batch_size 1 --cand_strategy hybrid --cand_window 12 --cand_max_candidates 12 --train_eps --eps_init 0.0 --amp --eval_module_path evaluate_signature_coref.py  --output_dir ckpts/antecedent/trail_1_12_12 --save_every_epoch
+
+python train_signature_antecedent_streaming.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 5 --lr 2e-5 --topic_batch_size 1 --pair_batch_size 16 --cand_strategy all --cand_window 32 --cand_max_candidates 0 --max_length=384 --train_eps --eps_init 0.0 --eval_module_path evaluate_signature_coref.py --eval_every_epoch --output_dir ckpts/antecedent/trail_1_16_all_0_384 --save_every_epoch --amp
+
+
 
 python predict_signature_coref.py --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --distance_threshold 0.1 --out_path output/predicted_clusters_0.1.jsonl
 
@@ -48,9 +54,9 @@ python utils/make_scico_pred_jsonl.py --split test --predicted_clusters output/p
 python evaluate_signature_coref.py data_scico/test.jsonl output/system_pred_0.1.jsonl
 
 ## Calibrate
-python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --bert_model allenai/specter2_base --adapter_name allenai/specter2 --checkpoint ckpts/ckpts_sigce_specter/best_epoch2_f10.8710.pt --out_path output/output_specter/pair_scores_dev.jsonl;
-python -m calibration.dump_pair_scores --split test --signatures_path data_tanl/scico_signatures_test.jsonl --bert_model allenai/specter2_base --adapter_name allenai/specter2 --checkpoint ckpts/ckpts_sigce_specter/best_epoch2_f10.8710.pt --out_path output/output_specter/pair_scores_test.jsonl;
-python -m calibration.fit_temperature_from_pairs --scores_path output/output_specter/pair_scores_dev.jsonl --split validation --out_json output/output_specter/temperature_dev.json;
-python -m calibration.sweep_thresholds --scores_path output/output_specter/pair_scores_dev.jsonl --split validation --eval_module_path evaluate_signature_coref.py --temperature_json output/output_specter/temperature_dev.json --method agglomerative --linkage average --t_min 0.1 --t_max 0.9 --t_step 0.05
+python -m calibration.dump_pair_scores --split validation --signatures_path data_tanl/scico_signatures_dev.jsonl --bert_model allenai/specter2_base --adapter_name allenai/specter2 --checkpoint ckpts/ckpts_sigce_specter10/best_epoch3_f10.8455.pt --out_path output/output_specter10/pair_scores_dev.jsonl;
+python -m calibration.dump_pair_scores --split test --signatures_path data_tanl/scico_signatures_test.jsonl --bert_model allenai/specter2_base --adapter_name allenai/specter2 --checkpoint ckpts/ckpts_sigce_specter10/best_epoch3_f10.8455.pt --out_path output/output_specter10/pair_scores_test.jsonl;
+python -m calibration.fit_temperature_from_pairs --scores_path output/output_specter10/pair_scores_dev.jsonl --split validation --out_json output/output_specter10/temperature_dev.json;
+python -m calibration.sweep_thresholds --scores_path output/output_specter10/pair_scores_dev.jsonl --split validation --eval_module_path evaluate_signature_coref.py --temperature_json output/output_specter10/temperature_dev.json --method agglomerative --linkage average --t_min 0.1 --t_max 0.9 --t_step 0.02
 
-python -m calibration.sweep_thresholds --scores_path output/output_specter/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output/output_specter/temperature_dev.json --method agglomerative --linkage average --t_min 0.3 --t_max 0.3 --t_step 0.1
+python -m calibration.sweep_thresholds --scores_path output/output_specter10/pair_scores_test.jsonl --split test --eval_module_path evaluate_signature_coref.py --temperature_json output/output_specter10/temperature_dev.json --method agglomerative --linkage average --t_min 0.3 --t_max 0.3 --t_step 0.1
