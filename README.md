@@ -32,6 +32,10 @@ python preprocess/build_signature.py --pred_path data_tanl/scico_dev_tanl_extrac
 python preprocess/build_signature.py --pred_path data_tanl/scico_train_tanl_extraction.jsonl --split train --out_path data_tanl/scico_signatures_train.jsonl; 
 python preprocess/build_signature.py --pred_path data_tanl/scico_test_tanl_extraction.jsonl --split test --out_path data_tanl/scico_signatures_test.jsonl
 
+python preprocess/build_signature_coref_v1.py --pred_path data_tanl/scico_dev_tanl_extraction.jsonl --coref_pred_path data_tanl/scico_dev_tanl_extraction_coref.jsonl --split validation --out_path data_tanl/scico_signatures_dev_coref_v1.jsonl;
+python preprocess/build_signature_coref_v1.py --pred_path data_tanl/scico_train_tanl_extraction.jsonl --coref_pred_path data_tanl/scico_train_tanl_extraction_coref.jsonl --split train --out_path data_tanl/scico_signatures_train_coref_v1.jsonl;
+python preprocess/build_signature_coref_v1.py --pred_path data_tanl/scico_test_tanl_extraction.jsonl --coref_pred_path data_tanl/scico_test_tanl_extraction_coref.jsonl --split test --out_path data_tanl/scico_signatures_test_coref_v1.jsonl
+
 
 ## Cross-Encoder
 
@@ -39,7 +43,25 @@ python train_signature_coref.py --signatures_path_train data_tanl/scico_signatur
 
 python train_signature_antecedent.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 3 --lr 2e-5 --topic_batch_size 1 --pair_batch_size 1 --cand_strategy hybrid --cand_window 12 --cand_max_candidates 12 --train_eps --eps_init 0.0 --amp --eval_module_path evaluate_signature_coref.py  --output_dir ckpts/antecedent/trail_1_12_12 --save_every_epoch
 
-python train_signature_antecedent_streaming.py --signatures_path_train data_tanl/scico_signatures_train.jsonl --signatures_path_val data_tanl/scico_signatures_dev.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 5 --lr 2e-5 --topic_batch_size 1 --pair_batch_size 16 --cand_strategy all --cand_window 32 --cand_max_candidates 0 --max_length=384 --train_eps --eps_init 0.0 --eval_module_path evaluate_signature_coref.py --eval_every_epoch --output_dir ckpts/antecedent/trail_1_16_all_0_384 --save_every_epoch --amp
+python train_signature_antecedent_streaming.py --signatures_path_train data_tanl/scico_signatures_train_coref_v1.jsonl --signatures_path_val data_tanl/scico_signatures_dev_coref_v1.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 5 --lr 2e-5 --pair_batch_size 16 --cand_strategy hybrid --cand_window 24 --cand_max_candidates 48 --max_length 384 --train_eps --eps_init 0.0 --eval_module_path evaluate_signature_coref.py --eval_every_epoch --output_dir ckpts/analysis/scibert/16_hybrid_24_48_384 --save_every_epoch --amp
+
+python train_signature_antecedent_streaming_null.py --signatures_path_train data_tanl/scico_signatures_train_coref_v1.jsonl --signatures_path_val data_tanl/scico_signatures_dev_coref_v1.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 5 --lr 2e-5 --pair_batch_size 16 --cand_strategy hybrid --cand_window 12 --cand_max_candidates 24 --max_length 384 --eps_mode null --null_sig "<NULL_ANT> no antecedent </NULL_ANT>" --eval_module_path evaluate_signature_coref.py --eval_every_epoch --output_dir ckpts/coref_v1/scibert/16_hybrid_12_24_384 --save_every_epoch --amp
+
+python train_signature_antecedent_streaming_null.py --signatures_path_train data_tanl/scico_signatures_train_coref_v1.jsonl --signatures_path_val data_tanl/scico_signatures_dev_coref_v1.jsonl --bert_model allenai/scibert_scivocab_uncased --epochs 10 --lr 2e-5 --pair_batch_size 16 --cand_strategy hybrid --cand_window 12 --cand_max_candidates 24 --max_length 384 --eps_mode null --null_sig "<NULL_ANT>" --eval_module_path evaluate_signature_coref.py --eval_every_epoch --output_dir ckpts/coref_v1_emptyNLL/scibert/16_hybrid_12_24_384 --save_every_epoch --amp;
+
+
+
+python eval_signature_antecedent_null_decisions.py --ckpt ckpts/coref_v1_emptyNLL/scibert/16_hybrid_12_24_384/epoch5_78.641.pt --split test --signatures_path data_tanl/scico_signatures_test_coref_v1.jsonl --eval_module_path evaluate_signature_coref.py --output_dir eval_outputs/coref_v1_emptyNLL/scibert/16_hybrid_12_24_384/epoch4 --save_labels --save_system --save_decisions;
+python eval_signature_antecedent_null_decisions.py --ckpt ckpts/coref_v1_emptyNLL/scibert/32_hybrid_12_24_384/epoch4_78.512.pt --split test --signatures_path data_tanl/scico_signatures_test_coref_v1.jsonl --eval_module_path evaluate_signature_coref.py --output_dir eval_outputs/coref_v1_emptyNLL/scibert/32_hybrid_12_24_384/epoch4 --save_labels --save_system --save_decisions;
+
+
+python eval_signature_global.py --ckpt ckpts/analysis/scibert/16_hybrid_24_48_384/epoch3.pt --split validation --signatures_path data_tanl/scico_signatures_dev_coref_v1.jsonl --eval_module_path evaluate_signature_coref.py --output_dir eval_outputs/global/scibert/epoch3 --save_labels --save_system --graph_topk 2 --graph_mutual --symmetrize;
+python eval_signature_global.py --ckpt ckpts/analysis/scibert/16_hybrid_24_48_384/epoch3.pt --split validation --signatures_path data_tanl/scico_signatures_dev_coref_v1.jsonl --eval_module_path evaluate_signature_coref.py --output_dir eval_outputs/global/scibert/epoch3 --save_labels --save_system --graph_topk 3 --graph_mutual --symmetrize;
+python eval_signature_global.py --ckpt ckpts/analysis/scibert/16_hybrid_24_48_384/epoch3.pt --split validation --signatures_path data_tanl/scico_signatures_dev_coref_v1.jsonl --eval_module_path evaluate_signature_coref.py --output_dir eval_outputs/global/scibert/epoch3 --save_labels --save_system --graph_topk 4 --graph_mutual --symmetrize;
+
+
+
+python eval_signature_antecedent_v3.py --ckpt ckpts/analysis/scibert/16_hybrid_24_48_384/epoch3.pt --split validation --signatures_path data_tanl/scico_signatures_dev_coref_v1.jsonl --eval_module_path evaluate_signature_coref.py --output_dir eval_outputs/analysis/cluster_decode/scibert/16_hybrid_24_48_384/epoch3 --save_labels --save_system --save_decisions --decode_mode cluster   --decode_rule p_eps --decode_eps_prob 0.7 --decode_cluster_reduce logmeanexp --decode_min_support 1
 
 
 
