@@ -14,7 +14,7 @@ venv/
 
 # Jupyter
 .ipynb_checkpoints/
-
+*.ipynb
 # OS files
 .DS_Store
 Thumbs.db
@@ -33,6 +33,8 @@ data_tanl/
 tanl-scierc_all-backbone/
 prompt.txt
 archieve/
+diagnostics_topic_tau/
+eval_outputs/
 
 # PyTorch / model weights / checkpoints / tokenizer files
 *.pth
