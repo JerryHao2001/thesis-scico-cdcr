@@ -26,6 +26,11 @@ log/
 tmp/
 configs/
 sweep_dev/
+*.ipynb
+diagnostics_topic_tau/
+edge_pools/
+eval_outputs/
+
 
 # Data and cached model files (project-specific)
 data_scico/
