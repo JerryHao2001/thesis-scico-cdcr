@@ -84,6 +84,18 @@ python train_signature_partition_qp.py --train_signatures_path data_tanl/scico_s
 
 python eval_signature_partition_qp.py --ckpt ckpts/part_qp_v3/run4/best_partition.pt --split test --signatures_path data_tanl/scico_signatures_test_coref_v1.jsonl --output_dir part_qp_v3/run4/eval --eval_module_path evaluate_signature_coref.py --save_labels --save_system --save_debug;
 
+(thesis-scico_cdcr) PS E:\JerryHao\Harvard\Thesis\source\thesis-scico_cdcr> python eval_signature_partition_qp.py --ckpt ckpts/part_qp_v3/run4/best_partition.pt --split test --signatures_path data_tanl/scico_signatures_test_coref_v1.jsonl --output_dir part_qp_v3/run4/eval --eval_module_path evaluate_signature_coref.py --save_labels --save_system --save_debug;
+2296 and 1790 singletons are removed from the key and system files, respectively
+[write] part_qp_v3/run4/eval\labels_by_tid_test_partition.json
+[write] part_qp_v3/run4/eval\system_test_partition.jsonl
+[write] part_qp_v3/run4/eval\debug_test_partition.jsonl
+[metrics] split=test CoNLL=74.73
+  mentions: R=94.64 P=89.09 F1=91.78
+  muc: R=90.93 P=81.90 F1=86.18
+  bcub: R=83.32 P=64.81 F1=72.91
+  ceafe: R=59.71 P=71.55 F1=65.10
+  lea: R=81.48 P=62.26 F1=70.59
+
 
 python predict_signature_coref.py --split test --signatures_path data_tanl/scico_signatures_test.jsonl --checkpoint ckpts_sigce/best_epoch1_f10.8654.pt --distance_threshold 0.1 --out_path output/predicted_clusters_0.1.jsonl
 
